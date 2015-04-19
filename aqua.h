@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/mman.h>
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <semaphore.h>
@@ -27,16 +28,31 @@ typedef struct tparams
 	int err;
 }TParams;
 
+typedef struct synchWater
+{
+	sem_t *mutex;
+	int oxygen; //citac kysliku
+	int hydrogen; //citac vodiku
+	sem_t *oxyQueue; //fronta kysliku
+	sem_t *hydroQueue; //fronta vodiku
+	FILE *outFile; //vystupni soubor
+} TSynchWater;
+
 enum errors
 {
 	EOK=0,
 	EARGS,
 	EFORK,
+	ESHM,
+	EFTR,
+	EMAP,
+	ESEM,
+	EFIL,
 };
 
 
 /*PROTOTYPY////////////////////*/
-void testOxygen();
-void testHydrogen();
+void Oxygen(TSynchWater synch, int *sharedMemory, int maxGo, int i);
+void Hydrogen(TSynchWater synch, int *sharedMemory, int maxGh, int i);
 
 #endif // HYDROGEN_OXYGEN_H_INCLUDED
