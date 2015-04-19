@@ -1,11 +1,44 @@
 
 #include "aqua.h"
 
+//nazvy sdilenych promennych
+const char *shmName="/aquaShm";
+const char *semMutexNm="/mutexSem";
+const char *semOxyqueNm="/oxyqueSem";
+const char *semHydroqueNm="/hydroqueSem";
+const char *fileName="h2o.out"; //nazev souboru
+
 char *errmsg[]={
 	"",	//EOK
 	"Neodpovidajici argumenty", //EARGS
 	"Chyba pri vytvareni potomka", //EFORK
+	"Nepodarilo se vytvorit sdilenou pamet", //ESHM
+	"Chyba pri orezavani sdilene pameti", //EFTR
+	"Chyba pri mapovani na sdilenou pamet", //EMAP
+	"Chyba pri vytvareni semaforu", //ESEM
+	"chyba pri otevirani souboru", //EFIL
 };
+
+void unlinker(void)
+{
+	sem_unlink(semMutexNm);
+	sem_unlink(semOxyqueNm);
+	sem_unlink(semHydroqueNm);	
+}
+
+void cleaner(TSynchWater synch, int sham)
+{
+	sem_close(synch.mutex);
+	sem_close(synch.oxyQueue);
+	sem_close(synch.hydroQueue);
+	munmap(NULL, 3*sizeof(int));
+	shm_unlink(shmName);
+	fclose(synch.outFile);
+	if(sham!=-1)
+	{
+		close(sham);
+	}
+}
 
 /*Funkce pro ziskani parametru*/
 TParams getparams(int argc, char **argv)
@@ -52,23 +85,73 @@ TParams getparams(int argc, char **argv)
 	return param;
 }
 
-
-
 int main(int argc, char **argv)
 {
 	TParams param;
 	param=getparams(argc, argv);
+	int countH; //pocet generovanych vodiku
+	countH=param.N*2; //pocet vodiku je 2*pocet kysliku
 	pid_t pid;
 	int i;
 	int j;
+	int *sharedMemory; //sdilena pamet
+	TSynchWater synch={.mutex=NULL, .oxygen=0, .hydrogen=0, .oxyQueue=NULL, .hydroQueue=NULL, .outFile=NULL};
 
 	if(param.err!=EOK)
 	{
 		fprintf(stderr, "%s\n", errmsg[EARGS]);
 		return 1;
 	}
-
+	
 	else{
+		//vytvoreni sdilene pameti
+		int sham=shm_open(shmName, O_RDWR|O_CREAT, S_IRUSR|S_IWUSR);
+		if(sham<0)
+		{
+			fprintf(stderr, "%s\n", errmsg[ESHM]);
+			return 1;
+		}
+
+		if(ftruncate(sham, 3*sizeof(int))==-1)
+		{
+			fprintf(stderr, "%s\n", errmsg[EFTR]);
+			return 1;
+		}
+
+		//mapovani na sdilenou pamet
+		sharedMemory=mmap(NULL, 3*sizeof(int), PROT_READ|PROT_WRITE, MAP_SHARED, sham, 0);
+		if(sharedMemory==MAP_FAILED)
+		{
+			fprintf(stderr, "%s\n", errmsg[EMAP]);
+			return 1;
+		}
+
+		sharedMemory[0]=-1; //sdielna pamet
+		sharedMemory[1]=1; //poradove cislo
+		sharedMemory[2]=0; //pocet vodiku
+
+		/*synchronizace semaforu*/
+		synch.mutex=sem_open(semMutexNm, O_CREAT, S_IRUSR|S_IWUSR, 1);
+		synch.oxyQueue=sem_open(semOxyqueNm, O_CREAT, S_IRUSR|S_IWUSR, 0);
+		synch.hydroQueue=sem_open(semHydroqueNm, O_CREAT, S_IRUSR|S_IWUSR, 0);
+		synch.outFile=fopen(fileName, "w");
+		synch.hydrogen=countH;
+		synch.oxygen=param.N;
+
+		if(synch.mutex==SEM_FAILED || synch.oxyQueue==SEM_FAILED || synch.hydroQueue==SEM_FAILED)
+		{
+			cleaner(synch, sham);
+			unlinker();
+			fprintf(stderr, "%s\n", errmsg[ESEM]);
+			return 1;
+		}
+
+		if(synch.outFile==NULL)
+		{
+			fprintf(stderr, "%s\n", errmsg[EFIL]);
+			return 1;
+		}
+
 			/*Zde se budou generovat procesy pro kyslik*/
 			for(i=0; i<param.N; i++)
 			{	
@@ -82,7 +165,8 @@ int main(int argc, char **argv)
 
 					if(pid==0)
 					{
-						testOxygen();	
+						Oxygen(synch, sharedMemory, param.GO, i);	
+						cleaner(synch, sham);
 						exit(0);
 					}
 
@@ -92,8 +176,8 @@ int main(int argc, char **argv)
 			}
 
 			/*Zde se budou generovat procesy pro vodik*/
-			param.N=param.N*2;			
-			for(j=0; j<param.N; j++)
+						
+			for(j=0; j<countH; j++)
 			{
 				pid=fork();
 
@@ -105,15 +189,18 @@ int main(int argc, char **argv)
 
 				if(pid==0)
 				{
-					testHydrogen();
+					Hydrogen(synch, sharedMemory, param.GH, j);
+					cleaner(synch, sham);
 					exit(0);
 				}
 
 				else{
 					
 				}
-				testHydrogen();
 			}
 	}
+
+	cleaner(synch, -1);
+	unlinker();
 	return 0;
 }
