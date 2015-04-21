@@ -31,8 +31,6 @@ typedef struct tparams
 typedef struct synchWater
 {
 	sem_t *mutex;
-	int oxygen; //citac kysliku
-	int hydrogen; //citac vodiku
 	sem_t *oxyQueue; //fronta kysliku
 	sem_t *hydroQueue; //fronta vodiku
 	FILE *outFile; //vystupni soubor
@@ -48,6 +46,7 @@ enum errors
 	EMAP,
 	ESEM,
 	EFIL,
+	EALC,
 };
 
 
