@@ -51,7 +51,7 @@ enum errors
 
 
 /*PROTOTYPY////////////////////*/
-void Oxygen(TSynchWater synch, int *sharedMemory, int maxGo, int i);
-void Hydrogen(TSynchWater synch, int *sharedMemory, int maxGh, int i);
+void Oxygen(TSynchWater synch, int *sharedMemory, TParams param, int i);
+void Hydrogen(TSynchWater synch, int *sharedMemory, TParams param, int i);
 
 #endif // HYDROGEN_OXYGEN_H_INCLUDED
