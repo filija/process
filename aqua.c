@@ -150,8 +150,8 @@ int main(int argc, char **argv)
 
 		sharedMemory[0]=-1; //sdielna pamet
 		sharedMemory[1]=1; //poradove cislo
-		sharedMemory[2]=1; //poradove cislo vodiku
-		sharedMemory[3]=1; //poradove cislo kysliku
+		sharedMemory[2]=0; //poradove cislo vodiku
+		sharedMemory[3]=0; //poradove cislo kysliku
 		
 		/*alokace semaforu*/
 		synch.mutex=malloc(sizeof(sem_t));
@@ -168,7 +168,7 @@ int main(int argc, char **argv)
 		}
 
 		/*synchronizace semaforu*/
-		if(sem_init(synch.mutex, sharedMemory[0], 1)!=0)
+		if(sem_init(synch.mutex, 1, 1)!=0)
 		{
 			fprintf(stderr, "%s\n", errmsg[ESEM]);
 			free(hydrogenPid);
@@ -177,7 +177,7 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		if(sem_init(synch.hydroQueue, sharedMemory[2], 0)!=0)
+		if(sem_init(synch.hydroQueue, 1, 0)!=0)
 		{
 			fprintf(stderr, "%s\n", errmsg[ESEM]);
 			free(hydrogenPid);
@@ -186,7 +186,7 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		if(sem_init(synch.oxyQueue, sharedMemory[3], 0)!=0)
+		if(sem_init(synch.oxyQueue, 1, 0)!=0)
 		{
 			fprintf(stderr, "%s\n", errmsg[ESEM]);
 			free(hydrogenPid);
@@ -208,7 +208,7 @@ int main(int argc, char **argv)
 						
 			for(i=1; i<=countH; ++i)
 			{
-				if(param.GO!=0)
+				if(param.GH!=0)
 				{
 					srand(time(NULL));
 					sleep((rand()%param.GH)/1000);
@@ -223,7 +223,7 @@ int main(int argc, char **argv)
 
 				if(pid==0)
 				{
-					Hydrogen(synch, sharedMemory, param.GH, i);
+					Hydrogen(synch, sharedMemory, param, i);
 					cleaner(synch, sham);
 					exit(0);
 				}
@@ -232,7 +232,6 @@ int main(int argc, char **argv)
 					hydrogenPid[i-1]=pid;
 				}
 			}
-
 
 			/*Zde se budou generovat procesy pro kyslik*/
 			for(i=1; i<=param.N; ++i)
@@ -253,7 +252,8 @@ int main(int argc, char **argv)
 
 					if(pid==0)
 					{
-						Oxygen(synch, sharedMemory, param.GO, i);	
+
+						Oxygen(synch, sharedMemory, param, i);	
 						cleaner(synch, sham);
 						free(hydrogenPid);
 						free(oxygenPid);
