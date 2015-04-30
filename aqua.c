@@ -17,16 +17,20 @@ char *errmsg[]={
 	"Chyba pri alokaci", //EALC
 };
 
-void unlinker(void)
+void unlinker(TSynchWater synch)
 {
+	sem_destroy(synch.mutex);
+	sem_destroy(synch.oxyQueue);
+	sem_destroy(synch.hydroQueue);
 	return;
 }
 
 void cleaner(TSynchWater synch, int sham)
 {
-	sem_close(synch.mutex);
-	sem_close(synch.oxyQueue);
-	sem_close(synch.hydroQueue);
+	free(synch.mutex);
+	free(synch.oxyQueue);
+	free(synch.hydroQueue);
+	free(synch.locker);
 	munmap(NULL, 4*sizeof(int));
 	shm_unlink(shmName);
 	fclose(synch.outFile);
@@ -83,6 +87,7 @@ TParams getparams(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
+
 	TParams param;
 	param=getparams(argc, argv);
 	int countH; //pocet generovanych vodiku
@@ -94,6 +99,7 @@ int main(int argc, char **argv)
 	pid_t *hydrogenPid;
 
 	TSynchWater synch={.mutex=NULL, .oxyQueue=NULL, .hydroQueue=NULL, .outFile=NULL};
+
 
 	if(param.err!=EOK)
 	{
@@ -128,7 +134,7 @@ int main(int argc, char **argv)
 		}
 
 
-		if(ftruncate(sham, 4*sizeof(int))==-1)
+		if(ftruncate(sham, 5*sizeof(int))==-1)
 		{
 			fprintf(stderr, "%s\n", errmsg[EFTR]);
 			free(hydrogenPid);
@@ -138,7 +144,7 @@ int main(int argc, char **argv)
 		}
 
 		//mapovani na sdilenou pamet
-		sharedMemory=mmap(NULL, 4*sizeof(int), PROT_READ|PROT_WRITE, MAP_SHARED, sham, 0);
+		sharedMemory=mmap(NULL, 5*sizeof(int), PROT_READ|PROT_WRITE, MAP_SHARED, sham, 0);
 		if(sharedMemory==MAP_FAILED)
 		{
 			fprintf(stderr, "%s\n", errmsg[EMAP]);
@@ -148,17 +154,19 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		sharedMemory[0]=-1; //sdielna pamet
-		sharedMemory[1]=1; //poradove cislo
+		sharedMemory[0]=0; //index vodiku
+		sharedMemory[1]=1; //index operaci
 		sharedMemory[2]=0; //poradove cislo vodiku
 		sharedMemory[3]=0; //poradove cislo kysliku
+		sharedMemory[4]=0; //index kysliku
 		
 		/*alokace semaforu*/
 		synch.mutex=malloc(sizeof(sem_t));
 		synch.oxyQueue=malloc(sizeof(sem_t));
 		synch.hydroQueue=malloc(sizeof(sem_t));
+		synch.locker=malloc(sizeof(sem_t));
 
-		if(synch.mutex==NULL || synch.oxyQueue==NULL || synch.hydroQueue==NULL)
+		if(synch.mutex==NULL || synch.oxyQueue==NULL || synch.hydroQueue==NULL || synch.locker==NULL)
 		{
 			fprintf(stderr, "%s\n", errmsg[EALC]);
 			free(hydrogenPid);
@@ -168,7 +176,7 @@ int main(int argc, char **argv)
 		}
 
 		/*synchronizace semaforu*/
-		if(sem_init(synch.mutex, 1, 1)!=0)
+		if(sem_init(synch.mutex, 0, 1)!=0)
 		{
 			fprintf(stderr, "%s\n", errmsg[ESEM]);
 			free(hydrogenPid);
@@ -177,7 +185,7 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		if(sem_init(synch.hydroQueue, 1, 0)!=0)
+		if(sem_init(synch.hydroQueue, 0, 0)!=0)
 		{
 			fprintf(stderr, "%s\n", errmsg[ESEM]);
 			free(hydrogenPid);
@@ -186,7 +194,16 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		if(sem_init(synch.oxyQueue, 1, 0)!=0)
+		if(sem_init(synch.oxyQueue, 0, 0)!=0)
+		{
+			fprintf(stderr, "%s\n", errmsg[ESEM]);
+			free(hydrogenPid);
+			free(oxygenPid);
+			shm_unlink(shmName);
+			return 1;
+		}
+
+		if(sem_init(synch.locker, 0, 1)!=0)
 		{
 			fprintf(stderr, "%s\n", errmsg[ESEM]);
 			free(hydrogenPid);
@@ -203,16 +220,11 @@ int main(int argc, char **argv)
 			free(oxygenPid);
 			return 1;
 		}
-
+		setlinebuf(synch.outFile); //vypnuti buffer
 			/*Zde se budou generovat procesy pro vodik*/
 						
 			for(i=1; i<=countH; ++i)
 			{
-				if(param.GH!=0)
-				{
-					srand(time(NULL));
-					sleep((rand()%param.GH)/1000);
-				}
 				pid=fork();
 
 				if(pid<0)
@@ -222,7 +234,7 @@ int main(int argc, char **argv)
 				}
 
 				if(pid==0)
-				{
+				{				
 					Hydrogen(synch, sharedMemory, param, i);
 					cleaner(synch, sham);
 					exit(0);
@@ -236,12 +248,6 @@ int main(int argc, char **argv)
 			/*Zde se budou generovat procesy pro kyslik*/
 			for(i=1; i<=param.N; ++i)
 			{	
-					if(param.GO!=0)
-					{
-						srand(time(NULL));
-						sleep((rand()%param.GO)/1000);
-					}
-
 					pid=fork();
 
 					if(pid<0)
@@ -252,11 +258,8 @@ int main(int argc, char **argv)
 
 					if(pid==0)
 					{
-
 						Oxygen(synch, sharedMemory, param, i);	
 						cleaner(synch, sham);
-						free(hydrogenPid);
-						free(oxygenPid);
 						exit(0);
 					}
 
@@ -264,10 +267,23 @@ int main(int argc, char **argv)
 						oxygenPid[i-1]=pid;
 					}					
 			}
+			
+			/*
+			for(i=0; i<countH; ++i)
+			{
+				kill((pid_t)hydrogenPid, SIGKILL);
+			}
 
-
+			for(i=0; i<param.N; ++i)
+			{
+				kill((pid_t)oxygenPid, SIGKILL);
+				
+			}
+			*/
+			kill(pid, SIGKILL);
 			cleaner(synch, -1);
-			unlinker();
+			close(sham);
+			unlinker(synch);
 	}
 
 	return 0;
