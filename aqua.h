@@ -16,6 +16,7 @@
 #include <sys/wait.h>
 #include <semaphore.h>
 #include <time.h>
+#include <signal.h>
 
 #define MAXTIME 5001 //max hodnota doby 
 
@@ -33,6 +34,7 @@ typedef struct synchWater
 	sem_t *mutex;
 	sem_t *oxyQueue; //fronta kysliku
 	sem_t *hydroQueue; //fronta vodiku
+	sem_t *locker;
 	FILE *outFile; //vystupni soubor
 } TSynchWater;
 
