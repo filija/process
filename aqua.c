@@ -220,9 +220,9 @@ int main(int argc, char **argv)
 			free(oxygenPid);
 			return 1;
 		}
-		setlinebuf(synch.outFile); //vypnuti buffer
+		setbuf(synch.outFile, NULL); //vypnuti buffer
+		fflush(synch.outFile); 
 			/*Zde se budou generovat procesy pro vodik*/
-						
 			for(i=1; i<=countH; ++i)
 			{
 				pid=fork();
@@ -242,7 +242,7 @@ int main(int argc, char **argv)
 
 				else{
 					hydrogenPid[i-1]=pid;
-				}
+				}	
 			}
 
 			/*Zde se budou generovat procesy pro kyslik*/
@@ -265,26 +265,42 @@ int main(int argc, char **argv)
 
 					else{
 						oxygenPid[i-1]=pid;
-					}					
-			}
-			
-			/*
-			for(i=0; i<countH; ++i)
-			{
-				kill((pid_t)hydrogenPid, SIGKILL);
-			}
-
-			for(i=0; i<param.N; ++i)
-			{
-				kill((pid_t)oxygenPid, SIGKILL);
+					}
 				
 			}
-			*/
-			kill(pid, SIGKILL);
+fflush(synch.outFile);
+			/*int check;
+			for(i=0; i<countH; ++i)
+			{
+				if(hydrogenPid[i]!=0)
+				{
+					printf("pid je %d\n", hydrogenPid[i]);
+					waitpid(hydrogenPid[i], &check, 0);				
+				}
+
+				else{
+					continue;
+				}
+			}
+			
+			for(i=0; i<param.N; ++i)
+			{
+				if(hydrogenPid[i]!=0)
+				{
+					printf("pid je %d\n", oxygenPid[i]);
+					waitpid(oxygenPid[i], &check, 0);
+		
+				}
+
+				else{
+					continue;
+				}
+			}*/
+
 			cleaner(synch, -1);
 			close(sham);
 			unlinker(synch);
 	}
 
-	return 0;
+	exit(EXIT_SUCCESS);
 }
