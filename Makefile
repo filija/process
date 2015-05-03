@@ -1,19 +1,19 @@
-
+CC=gcc
 CFLAGS=-std=gnu99 -pedantic -Wall -Wextra
  
-all: aqua
+all: h2o
  
-aqua: aqua.o oxygen.o hydrogen.o
-	gcc $(CFLAGS) -pthread aqua.o oxygen.o hydrogen.o -o aqua -lrt
+h2o: h2o.o oxygen.o hydrogen.o
+	$(CC) $(CFLAGS) -pthread h2o.o oxygen.o hydrogen.o -o h2o -lrt
  
-aqua.o: aqua.c aqua.h
-	gcc $(CFLAGS) -pthread -c aqua.c -o aqua.o -lrt
+h2o.o: h2o.c h2o.h
+	$(CC) $(CFLAGS) -pthread -c h2o.c -o h2o.o -lrt
  
-oxygen.o: oxygen.c aqua.h
-	gcc $(CFLAGS) -pthread -c oxygen.c -o oxygen.o -lrt
+oxygen.o: oxygen.c h2o.h
+	$(CC) $(CFLAGS) -pthread -c oxygen.c -o oxygen.o -lrt
  
-hydrogen.o: hydrogen.c aqua.h
-	gcc $(CGLAGS) -pthread -c hydrogen.c -o hydrogen.o -lrt
+hydrogen.o: hydrogen.c h2o.h
+	$(CC) $(CGLAGS) -pthread -c hydrogen.c -o hydrogen.o -lrt
  
 clean:
-	rm -f aqua oxygen.o hydrogen.o aqua.o
+	rm -f h2o oxygen.o hydrogen.o h2o.o
