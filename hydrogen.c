@@ -1,57 +1,94 @@
+/*
+	Author: Jakub Filipek (xfilip34)
+	Projekt: proj2 IOS, h2oProblem
+	Datum: 3.5.2015
+*/
 
-#include "aqua.h"
+#include "h2o.h"
 
 void Hydrogen(TSynchWater synch, int *sharedMemory, TParams param, int i)
 {
-	int c_hydro=0;
-	srand(time(NULL));
-	sem_wait(synch.mutex);	
-	if(param.GH!=0)
-	{		
-		sleep((rand()%param.GH)/1000);	
-	}
-	
-	sharedMemory[2]++;
-	sharedMemory[0]++;
-
-	sem_wait(synch.locker);
-	fprintf(synch.outFile, "%d:\tH %d:\tstarted.\n", sharedMemory[1]++, sharedMemory[0]);
+	sem_wait(synch.locker);	
+	fprintf(synch.outFile, "%d:\tH %d:\tstarted\n", sharedMemory[1]++, i);
 	sem_post(synch.locker);
+	sem_wait(synch.mutex);	//cekam pri tvoreni molekuly
+	sharedMemory[2]++; //pocet vodiku zvysuji o 1
 
-	if(sharedMemory[2]>=2 && sharedMemory[3]>=1)
-	{		
+	/*pokud jsou pripraveny vsechny atomy je pripraveno k vytvoreni molekuly*/
+	if(sharedMemory[3]>=1 && sharedMemory[2]>=2)
+	{
 		sem_wait(synch.locker);
-		fprintf(synch.outFile, "%d:\tH %d:\tready.\n", sharedMemory[1]++, sharedMemory[0]);
+		fprintf(synch.outFile, "%d:\tH %d:\tready\n", sharedMemory[1]++, i);
 		sem_post(synch.locker);
-		sem_post(synch.hydroQueue);
-		sem_post(synch.hydroQueue);
-
-		sharedMemory[2]=sharedMemory[2]-2;
+		sharedMemory[3]--; //odecteni kysliku
+		sharedMemory[2]=sharedMemory[2]-2; //odecteni vodiku
 		sem_post(synch.oxyQueue);
-		sharedMemory[3]--;
+		sem_post(synch.hydroQueue);
+		sem_post(synch.hydroQueue);	
+		sem_post(synch.ready);
 	}
 
+	/*pokud ne cekej na dalsi atomy*/
 	else{
 		sem_wait(synch.locker);
-		fprintf(synch.outFile, "%d:\tH %d:\twaiting.\n", sharedMemory[1]++, sharedMemory[0]);
+		fprintf(synch.outFile, "%d:\tH %d:\twaiting\n", sharedMemory[1]++, i);
 		sem_post(synch.locker);
 		sem_post(synch.mutex);
 	}
 
-	 sem_wait(synch.hydroQueue);
-
+	/*zahajeni tvorby molekuly*/
+	sem_wait(synch.hydroQueue);
 	sem_wait(synch.locker);
-	fprintf(synch.outFile, "%d:\tH %d:\tbegin bonding.\n", sharedMemory[1]++, sharedMemory[0]);
-	c_hydro++;
+	fprintf(synch.outFile, "%d:\tH %d:\tbegin bonding\n", sharedMemory[1]++, i);
 	sem_post(synch.locker);
 
+	/*generovani doby pro vytvoreni molekuly*/
 	if(param.B!=0)
 	{
-		sleep((rand()%param.B)/1000);
+		srand(time(NULL));
+		usleep((rand()%param.B)*1000);
 	}
 
-	sem_wait(synch.locker);
-	fprintf(synch.outFile, "%d:\tH %d:\tbonded\n", sharedMemory[1]++, sharedMemory[0]);
-	sem_post(synch.locker);
+	sem_wait(synch.ready);
+	sharedMemory[5]++;
 
+	if((sharedMemory[5]%3)!=0 )
+	{
+		sem_post(synch.ready);
+		sem_wait(synch.bonded);
+		sem_wait(synch.locker);
+		fprintf(synch.outFile, "%d:\tH %d:\tbonded\n", sharedMemory[1]++, i);
+		sem_post(synch.locker);
+		sem_post(synch.waiting);
+		sem_wait(synch.done);
+	}
+
+	else{
+		sem_post(synch.bonded);
+		sem_post(synch.bonded);
+		sem_wait(synch.locker);
+		fprintf(synch.outFile, "%d:\tH %d:\tbonded\n", sharedMemory[1]++, i);
+		sem_post(synch.locker);
+		sem_wait(synch.waiting);
+		sem_wait(synch.waiting);
+		sem_post(synch.done);
+		sem_post(synch.done);
+		sem_post(synch.mutex);
+	}
+
+	if(sharedMemory[5]==param.N*3)
+	{
+			int j;
+		for(j=0; j<=param.N*3; j++)
+		{
+			sem_post(synch.finished);
+		}
+	}
+
+	sem_wait(synch.finished);
+//	sem_wait(synch.bonding);
+	sem_wait(synch.locker);
+	fprintf(synch.outFile, "%d:\tH %d:\tfinished\n", sharedMemory[1]++, i);
+	sem_post(synch.locker);
+	sem_post(synch.bonding);
 }
