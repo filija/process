@@ -105,6 +105,7 @@ TParams getparams(int argc, char **argv)
 	return param;
 }
 
+/********************************Hlavni Program******************************************************************/
 int main(int argc, char **argv)
 {
 	TParams param;
@@ -157,8 +158,6 @@ int main(int argc, char **argv)
 		sharedMemory[3]=0; //poradove cislo kysliku
 		sharedMemory[4]=1; //index kysliku
 		sharedMemory[5]=0; //counter bond
-		
-		unlinker(synch);
 
 		/*synchronizace semaforu*/
 	if(((synch.mutex=sem_open("/mutexsem", O_CREAT | O_EXCL, 0644, 1))==SEM_FAILED) ||
@@ -190,7 +189,8 @@ int main(int argc, char **argv)
 			/*Generovani procesu pro vodik*/
 			for(i=1; i<=countH; i++)
 			{
-				if(param.GO!=0)
+				/*generovani procesu po nahodne dobe*/
+				if(param.GH!=0)
 				{
 					srand(time(NULL)*getpid());
 					usleep((rand()%param.GH)*1000);
@@ -219,6 +219,7 @@ int main(int argc, char **argv)
 			/*Generovani procesu pro kyslik*/
 			for(i=1; i<=param.N; i++)
 			{	
+				/*generovani procesu po nahodne dobe*/
 				if(param.GO!=0)
 				{
 					srand(time(NULL));
@@ -241,9 +242,11 @@ int main(int argc, char **argv)
 					}
 
 					else{
-						;
+						; 
 					}				
 			}
+
+			/*cekani na dokonceni procesu*/
 			while(wait(&check) > 0);
 			cleaner(synch, -1);
 			close(sham);
@@ -254,3 +257,5 @@ int main(int argc, char **argv)
 
 	exit(EXIT_SUCCESS);
 }
+
+/********************************Konec Programu******************************************************************/
