@@ -33,11 +33,11 @@ void Hydrogen(TSynchWater synch, int *sharedMemory, TParams param, int i)
 		sem_wait(synch.locker);
 		fprintf(synch.outFile, "%d:\tH %d:\twaiting\n", sharedMemory[1]++, i);
 		sem_post(synch.locker);
-		sem_post(synch.mutex);
+		sem_post(synch.mutex); //muze generovat dalsi atom
 	}
 
 	/*zahajeni tvorby molekuly*/
-	sem_wait(synch.hydroQueue);
+	sem_wait(synch.hydroQueue); 
 	sem_wait(synch.locker);
 	fprintf(synch.outFile, "%d:\tH %d:\tbegin bonding\n", sharedMemory[1]++, i);
 	sem_post(synch.locker);
@@ -52,8 +52,10 @@ void Hydrogen(TSynchWater synch, int *sharedMemory, TParams param, int i)
 	sem_wait(synch.ready);
 	sharedMemory[5]++;
 
+	/*prvky ktere cekaly*/
 	if((sharedMemory[5]%3)!=0 )
 	{
+		//cekame na 3 prvek
 		sem_post(synch.ready);
 		sem_wait(synch.bonded);
 		sem_wait(synch.locker);
@@ -63,7 +65,7 @@ void Hydrogen(TSynchWater synch, int *sharedMemory, TParams param, int i)
 		sem_wait(synch.done);
 	}
 
-	else{
+	else{ /*vytvoreni molekul*/
 		sem_post(synch.bonded);
 		sem_post(synch.bonded);
 		sem_wait(synch.locker);
@@ -76,17 +78,19 @@ void Hydrogen(TSynchWater synch, int *sharedMemory, TParams param, int i)
 		sem_post(synch.mutex);
 	}
 
+	/*pokud uz jsou poskladany vsechny atomy*/
 	if(sharedMemory[5]==param.N*3)
 	{
 			int j;
 		for(j=0; j<=param.N*3; j++)
 		{
-			sem_post(synch.finished);
+			/*kazdem atomu dat finished*/
+			sem_post(synch.finished); 
 		}
 	}
 
+	/*ukonceni*/
 	sem_wait(synch.finished);
-//	sem_wait(synch.bonding);
 	sem_wait(synch.locker);
 	fprintf(synch.outFile, "%d:\tH %d:\tfinished\n", sharedMemory[1]++, i);
 	sem_post(synch.locker);
